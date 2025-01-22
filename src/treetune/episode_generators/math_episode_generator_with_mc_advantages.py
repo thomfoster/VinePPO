@@ -62,6 +62,17 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
         def try_loading_inference_results(results_path: Path) -> Optional[Dataset]:
             logger.info(f"Always generating from scratch")
             return None
+            # import os
+            # if os.path.exists(results_path):
+            #     try:
+            #         logger.info(f"Loading inference results from {results_path}")
+            #         return Dataset.load_from_disk(str(results_path))
+            #     except:
+            #         logger.warning(f"Failed to load inference results from {results_path}")
+            #         return None
+            # logger.info(f"Couldnt find {results_path}")
+            # return None
+                    
 
         metrics = {}
 
@@ -454,20 +465,33 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
         metrics = {
             "parse_failed": [],
             "once_hit": [],
+            "hit_variance": [],
+            "n_hits": [],
             "is_unfinished_response": [],
             "is_truncated_response": [],
             "finish_reason_is_length": [],
             "trajectory_bleu": [],
             "num_unique_responses": [],
         }
-        trajectories = []
+        for i in range(17):
+            metrics[f"hit_{i}_times"] = []
+        logger.info("#" * 80)
+        logger.info(f"Creating trajectories from {len(inference_results)} instances.")
+        trajectories_groups = []
         for idx, instance in enumerate(inference_results):
             # noinspection PyTypeChecker
             tree = json.loads(instance["_treetune__reasoning_tree"])
             paths = self.extract_paths_from_tree(tree)
             all_scores = []
             all_responses = []
-            for path in paths:
+            
+            if idx < 3:
+                logger.info(f"trajectory {idx} has {len(paths)} paths")
+            
+            trajectories = []
+            
+            for path in paths:    
+                
                 assert len(path["node_chain"]) == 2, "Does not support multi-hop paths."
 
                 finish_reason = path["node_chain"][-1]["finish_reason"]
@@ -578,22 +602,83 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
             if len(all_scores) > 0:
                 once_hit = any([r == 1.0 for r in all_scores])
                 metrics["once_hit"].append(float(once_hit))
+                
+            for i in range(len(paths)+1):
+                n_hits = sum([r == 1.0 for r in all_scores])
+                hit_i_times = n_hits == i
+                metrics[f"hit_{i}_times"].append(float(hit_i_times))
+                
+            if len(all_scores) > 0:
+                hit_variance = np.var(all_scores)
+                metrics["hit_variance"].append(hit_variance)
+                
+            if len(all_scores) > 0:
+                n_hits = sum([r == 1.0 for r in all_scores])
+                metrics["n_hits"].append(float(n_hits))
 
             if len(all_responses) > 1:
                 metrics["num_unique_responses"].append(len(set(all_responses)))
                 if self._bleu_metric is not None:
                     bleu = self._avg_bleu_of_pairs_of_response(all_responses)
                     metrics["trajectory_bleu"].append(bleu)
+                    
+            trajectories_groups.append(trajectories)
 
         # noinspection DuplicatedCode
-        metrics = {
-            k: sum(values) / len(values)
-            for k, values in metrics.items()
-            if len(values) > 0
-        }
-        if len(metrics) > 0:
-            logs = {f"episodes_metric/{k}": v for k, v in metrics.items()}
-            self._cloud_log({**logs, "train/global_iteration": iteration})
+        def take_means_and_log(metrics, tag="episodes_metric"):
+            metrics_to_log = {
+                k: sum(values) / len(values)
+                for k, values in metrics.items()
+                if len(values) > 0
+            }
+            # also log distributions for some metrics
+            if "hit_variance" in metrics:
+                logger.info(f"len of hit variance: {len(metrics['hit_variance'])} and shape as numpy array is {np.array(metrics['hit_variance']).shape}")
+                metrics_to_log["hit_variance/dist"] = np.array(metrics["hit_variance"])
+            if "n_hits" in metrics:
+                metrics_to_log["n_hits/dist"] = np.array(metrics["n_hits"])
+            if "num_unique_responses" in metrics:
+                metrics_to_log["num_unique_responses/dist"] = np.array(metrics["num_unique_responses"])
+                
+            if len(metrics_to_log) > 0:
+                logs = {f"{tag}/{k}": v for k, v in metrics_to_log.items()}
+                self._cloud_log({**logs, "train/global_iteration": iteration})
+                
+        take_means_and_log(metrics)
+            
+        # take the top 1/4 trajectory groups by variance
+        logger.info("~"*80)
+        logger.info(f"Doing SFL selection on {len(trajectories_groups)} trajectory groups")
+        variances = metrics['hit_variance']
+        assert len(variances) == len(trajectories_groups)
+        
+        # first arg sort variances from high to low and take top 1/4
+        sorted_indices = np.argsort(variances)[::-1]
+        # selected_indices = sorted_indices[:len(sorted_indices)//4]
+        selected_indices = range(len(sorted_indices)//4)
+        logger.warning(f"NOTt, DOING SFL!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        trajectories_groups = [trajectories_groups[i] for i in selected_indices]
+        
+        # flatten the list of lists
+        trajectories = [item for sublist in trajectories_groups for item in sublist]
+        
+        logger.info(f"Selected {len(trajectories)} trajectories from {len(trajectories_groups)} groups")
+        
+        # relog the metrics for the selected trajectory groups
+        # take_means_and_log(selected_metrics, tag="episodes_metric/selected")
+        print(f"Selecting metrics between {min(selected_indices)} and {max(selected_indices)}")
+        selected_metrics = {}
+        for k, v in metrics.items():
+            print(k, len(v))
+            if (len(v) >= max(selected_indices)) and (min(selected_indices) >= 0):
+                try:
+                    new_v = [v[i] for i in selected_indices]
+                    selected_metrics[k] = new_v
+                except:
+                    print(f"Error in {k}")
+                    continue
+                
+        take_means_and_log(selected_metrics, tag="episodes_metric/selected")
 
         return trajectories
 

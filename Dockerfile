@@ -1,7 +1,6 @@
 # Use the official PyTorch image as the base image
 FROM pytorch/pytorch:2.1.2-cuda12.1-cudnn8-devel
 
-
 ENV TZ=America/New_York
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CUDA_HOME=/usr/local/cuda
@@ -21,11 +20,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Create local user
+# https://jtreminio.com/blog/running-docker-containers-as-current-host-user/
+ARG UID
+ARG GID
+RUN if [ ${UID:-0} -ne 0 ] && [ ${GID:-0} -ne 0 ]; then \
+    groupadd -g ${GID} duser &&\
+    useradd -l -u ${UID} -g duser duser &&\
+    install -d -m 0755 -o duser -g duser /home/duser &&\
+    chown --changes --silent --no-dereference --recursive ${UID}:${GID} /home/duser \
+    ;fi
 
-# Remove the requirements.txt file
-RUN rm requirements.txt
+USER duser
+WORKDIR /home/duser
+
+# Install Python packages
+ENV PATH="/home/duser/.local/bin:$PATH"
+RUN python3 -m pip install --upgrade pip
+ARG REQS
+RUN pip install $REQS
+
+WORKDIR /home/duser/project
 
 

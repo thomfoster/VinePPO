@@ -13,6 +13,7 @@ local math_task = (import 'tasks/math_inplace_no_answer_prefix.jsonnet') + {
 local num_episodes_per_iteration = 512;
 local num_rollouts_per_sample = 8;
 local num_dataset_samples_per_iteration = num_episodes_per_iteration / num_rollouts_per_sample;
+local sfl_keep_fraction = 4;
 local total_num_iterations = 1000;
 
 local sampling_temperature = 0.6;
@@ -33,7 +34,7 @@ local sampling_temperature = 0.6;
         initial_model_name_or_path: hf_model_name,
 
         dataset_sample_with_replacement: true,
-        dataset_num_samples_per_iteration: num_dataset_samples_per_iteration,
+        dataset_num_samples_per_iteration: num_dataset_samples_per_iteration * sfl_keep_fraction,
         total_num_iterations: $.num_iterations,
 
         vllm_server+: { swap_space: 8, max_num_seqs: 512 },
