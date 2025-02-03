@@ -27,11 +27,15 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
         self,
         value_estimation_inference_strategy: Lazy[InferenceStrategy],
         max_step_for_value_estimation: Optional[int] = None,
+        sfl_enabled: bool = False,
+        sfl_n_to_k_ratio: float = 1,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.value_inference_strategy_lazy = value_estimation_inference_strategy
         self.max_step_for_value_estimation = max_step_for_value_estimation
+        self.sfl_enabled = sfl_enabled
+        self.sfl_n_to_k_ratio = sfl_n_to_k_ratio
         self._logger = logger
 
     def _run_inference(
@@ -648,15 +652,19 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
             
         # take the top 1/4 trajectory groups by variance
         logger.info("~"*80)
-        logger.info(f"Doing SFL selection on {len(trajectories_groups)} trajectory groups")
         variances = metrics['hit_variance']
         assert len(variances) == len(trajectories_groups)
-        
-        # first arg sort variances from high to low and take top 1/4
+        # first arg sort variances from high to low
         sorted_indices = np.argsort(variances)[::-1]
-        # selected_indices = sorted_indices[:len(sorted_indices)//4]
-        selected_indices = range(len(sorted_indices)//4)
-        logger.warning(f"NOTt, DOING SFL!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        
+        if self.sfl_enabled:
+            logger.info(f"Doing SFL selection on {len(trajectories_groups)} trajectory groups")
+            selected_indices = sorted_indices[:len(sorted_indices)//self.sfl_n_to_k_ratio]
+        
+        else:
+            logger.warning(f"Not doing SFL, keeping all {len(trajectories_groups)} trajectory groups")
+            selected_indices = range(len(sorted_indices))
+        
         trajectories_groups = [trajectories_groups[i] for i in selected_indices]
         
         # flatten the list of lists

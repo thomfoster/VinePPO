@@ -326,7 +326,11 @@ class OnPolicyEpisodeGenerator(EpisodeGenerator):
                     this_process_device.index,
                     threshold_mb=threshold_mb,
                 )
-
+                
+        # print the entire class heirachy of self
+        logger.info("Class hierarchy of self")
+        logger.info(self.__class__.__mro__)
+        logger.info(f"Process {process_index} starting inference.")
         infer_results = self._run_inference(
             dataset_shard=dataset,
             vllm_init_fn=vllm_init_fn,
@@ -343,9 +347,19 @@ class OnPolicyEpisodeGenerator(EpisodeGenerator):
         t0 = time.time()
 
         # Generate episodes from inference results. Each process generates its own episodes.
+        logger.info(f"Process {process_index} starting episode generation.")
+        episodes, episode_problem_ids = self._generate_episodes(infer_results, iteration)
+        
+        # filter the dataset based on the episode_problem_ids
+        dataset = dataset.filter(lambda x: x["_treetune__idx"] in episode_problem_ids)
+        print(f"Dataset size after filtering: {len(dataset)}")
+        # save to disk
+        dataset.save_to_disk(temp_dir / f"selected_dataset__{process_index}")
+        
+        # convert episodes to dicts 
         episodes_lst = [
             self._convert_to_dict(e)
-            for e in self._generate_episodes(infer_results, iteration)
+            for e in episodes
         ]
         episodes_ds_shard = Dataset.from_list(episodes_lst)
         episodes_ds_shard.save_to_disk(

@@ -1,6 +1,6 @@
 local hf_model_name = 'realtreetune/rho-1b-sft-GSM8K';
 local task = (import 'tasks/gsm8k_orig_format.jsonnet');
-local total_num_iterations = 650;
+local total_num_iterations = 675;
 
 
 (import 'polIter_rho1bSft2_ppo_MATH.jsonnet')

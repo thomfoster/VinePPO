@@ -8,6 +8,7 @@ from .math_episode_generator import MathEpisodeGenerator
 from .math_episode_generator_with_mc_advantages import (
     MathEpisodeGeneratorWithMCAdvantages,
 )
+from .math_episode_generator_with_sfl import MathEpisodeGeneratorWithSFL
 
 from .math_restem_episode_generator import MATHRestEMEpisodeGenerator
 from .math_dpo_positive_episode_generator import MATHDPOPositiveEpisodeGenerator
