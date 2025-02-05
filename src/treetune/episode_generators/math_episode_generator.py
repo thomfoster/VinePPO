@@ -207,34 +207,33 @@ class MathEpisodeGenerator(EpisodeGeneratorWithRewardFunction):
                 episodes.append(episode)
                 all_rewards.append(float(reward))
 
-            if len(all_rewards) > 0:
-                once_hit = any([r == 1.0 for r in all_rewards])
-                metrics.setdefault("once_hit", []).append(float(once_hit))
+            # group level metrics
+            once_hit = any([r == 1.0 for r in all_rewards])
+            metrics.setdefault("once_hit", []).append(float(once_hit))
                 
             for i in range(len(paths)+1):
                 n_hits = sum([r == 1.0 for r in all_rewards[:i]])
                 hit_i_times = n_hits == i
                 metrics.setdefault(f"hit_{i}_times", []).append(float(hit_i_times))
                 
-            if len(all_rewards) > 0:
-                hit_variance = np.var(all_rewards)
-                metrics.setdefault("hit_variance", []).append(hit_variance)
+            hit_variance = np.var(all_rewards) if len(all_rewards) > 1 else 0.0
+            metrics.setdefault("hit_variance", []).append(hit_variance)
                 
-            if len(all_rewards) > 0:
-                n_hits = sum([r == 1.0 for r in all_rewards])
-                metrics.setdefault("n_hits", []).append(n_hits)
+            n_hits = sum([r == 1.0 for r in all_rewards])
+            metrics.setdefault("n_hits", []).append(n_hits)
                 
-            if len(all_rewards) > 0:
-                avg_hits = sum([r == 1.0 for r in all_rewards]) / len(all_rewards)
-                metrics.setdefault("avg_hits", []).append(avg_hits)
+            avg_hits = sum([r == 1.0 for r in all_rewards]) / len(all_rewards)
+            metrics.setdefault("avg_hits", []).append(avg_hits)
                 
-            if len(all_responses) > 1:
-                metrics.setdefault("num_unique_responses", []).append(
-                    len(set(all_responses))
-                )
-                if self._bleu_metric is not None:
+            metrics.setdefault("num_unique_responses", []).append(
+                len(set(all_responses))
+            )
+            if self._bleu_metric is not None:
+                if len(all_responses) > 1:
                     bleu = self._avg_bleu_of_pairs_of_response(all_responses)
-                    metrics.setdefault("trajectory_bleu", []).append(bleu)
+                else:
+                    bleu = 0.0
+                metrics.setdefault("trajectory_bleu", []).append(bleu)
                     
             episodes_groups.append(episodes)
             group_problem_ids.append(instance["_treetune__idx"])
@@ -331,7 +330,7 @@ class MathEpisodeGenerator(EpisodeGeneratorWithRewardFunction):
         
         process_metrics(selected_metrics, prefix="selected/")
         
-        return selected_episodes, selected_group_problem_ids
+        return selected_episodes
 
     # noinspection DuplicatedCode
     def _avg_bleu_of_pairs_of_response(self, response: List[str]) -> float:

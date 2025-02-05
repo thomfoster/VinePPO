@@ -24,7 +24,6 @@ from treetune.tasks.base_task import Task
 
 logger = get_logger(__name__)
 
-
 class OnPolicyEpisodeGenerator(EpisodeGenerator):
     can_precompute_episodes: bool = False
     support_distributed: bool = True
@@ -348,13 +347,16 @@ class OnPolicyEpisodeGenerator(EpisodeGenerator):
 
         # Generate episodes from inference results. Each process generates its own episodes.
         logger.info(f"Process {process_index} starting episode generation.")
-        episodes, episode_problem_ids = self._generate_episodes(infer_results, iteration)
         
-        # filter the dataset based on the episode_problem_ids
-        dataset = dataset.filter(lambda x: x["_treetune__idx"] in episode_problem_ids)
-        print(f"Dataset size after filtering: {len(dataset)}")
-        # save to disk
-        dataset.save_to_disk(temp_dir / f"selected_dataset__{process_index}")
+        episodes = self._generate_episodes(infer_results, iteration)
+        
+        # episodes, episode_problem_ids = self._generate_episodes(infer_results, iteration)
+
+        # # filter the dataset based on the episode_problem_ids
+        # dataset = dataset.filter(lambda x: x["_treetune__idx"] in episode_problem_ids)
+        # print(f"Dataset size after filtering: {len(dataset)}")
+        # # save to disk
+        # dataset.save_to_disk(temp_dir / f"selected_dataset__{process_index}")
         
         # convert episodes to dicts 
         episodes_lst = [

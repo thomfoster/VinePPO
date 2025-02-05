@@ -603,28 +603,28 @@ class MathEpisodeGeneratorWithMCAdvantages(MathEpisodeGenerator):
                     }
                 )
 
-            if len(all_scores) > 0:
-                once_hit = any([r == 1.0 for r in all_scores])
-                metrics["once_hit"].append(float(once_hit))
+            # Add metrics for current trajectory group (ie level)
+            once_hit = any([r == 1.0 for r in all_scores])
+            metrics["once_hit"].append(float(once_hit))
                 
             for i in range(len(paths)+1):
                 n_hits = sum([r == 1.0 for r in all_scores])
                 hit_i_times = n_hits == i
                 metrics[f"hit_{i}_times"].append(float(hit_i_times))
                 
-            if len(all_scores) > 0:
-                hit_variance = np.var(all_scores)
-                metrics["hit_variance"].append(hit_variance)
+            hit_variance = np.var(all_scores) if len(all_scores) > 1 else 0.0
+            metrics["hit_variance"].append(hit_variance)
                 
-            if len(all_scores) > 0:
-                n_hits = sum([r == 1.0 for r in all_scores])
-                metrics["n_hits"].append(float(n_hits))
+            n_hits = sum([r == 1.0 for r in all_scores])
+            metrics["n_hits"].append(float(n_hits))
 
-            if len(all_responses) > 1:
-                metrics["num_unique_responses"].append(len(set(all_responses)))
-                if self._bleu_metric is not None:
+            metrics["num_unique_responses"].append(len(set(all_responses)))
+            if self._bleu_metric is not None:
+                if len(all_responses) > 1:
                     bleu = self._avg_bleu_of_pairs_of_response(all_responses)
-                    metrics["trajectory_bleu"].append(bleu)
+                else:
+                    bleu = 0.0
+                metrics["trajectory_bleu"].append(bleu)
                     
             trajectories_groups.append(trajectories)
 
